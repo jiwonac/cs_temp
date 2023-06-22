@@ -54,7 +54,7 @@ fn optimize(matches: clap::ArgMatches) {
                     .with_time_limit(n_sec)
                     .with_iter_limit(n_iter)
                     .with_expr(&program_expr);
-
+    
     let start_time = Instant::now();
     let runner = runner.run(&rules::<TnsrAnalysis>());
     let sat_duration = start_time.elapsed();
@@ -74,23 +74,19 @@ fn optimize(matches: clap::ArgMatches) {
     println!("  Number of programs: {}", num_programs);
 
     let (egraph, root) = (runner.egraph, runner.roots[0]);
-
-    let (best, _) = {
-        let tnsr_cost = TnsrCost {
-            egraph: &egraph,
-        };
-        let start_time = Instant::now();
-        let extractor = Extractor::new(&egraph, tnsr_cost);
-        let (best_cost, best) = extractor.find_best(root);
-        let duration = start_time.elapsed();
-
-        println!("Extractor complete!");
-        println!("  Time taken: {:?}", duration);
-        println!("  Best cost: {:?}", best_cost);
-        (best, duration.as_secs_f32())
+    let tnsr_cost = TnsrCost {
+        egraph: &egraph,
     };
+    let start_time = Instant::now();
+    let extractor = Extractor::new(&egraph, tnsr_cost);
+    let (best_cost, best) = extractor.find_best(root);
+    let duration = start_time.elapsed();
 
-    println!("Extracted program: {:?}", best.pretty(40 as usize));
+    println!("Post-saturation extractor complete!");
+    println!("  Time taken: {:?}", duration);
+    println!("  Best cost: {:?}", best_cost);
+
+    println!("Extracted program:\n {}", best.pretty(40 as usize));
 }
 
 fn get_stats(egraph: &EGraph<TnsrLang, TnsrAnalysis>) -> (usize, usize, f32, usize, f32) {

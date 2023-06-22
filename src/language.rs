@@ -131,7 +131,8 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 assert!(x(b).dtype == DataKind::Tnsr);
                 assert_eq!(x(a).dims.len(), vec![0, 0].len());
                 assert_eq!(x(b).dims.len(), vec![0, 0].len());
-                assert_eq!(x(a).dims[1], x(a).dims[0]);
+                assert_eq!(x(a).dims[1], x(b).dims[0]);
+                //println!("{} {} {} {}", x(a).dims[0], x(a).dims[1], x(b).dims[0], x(b).dims[1]);
                 let foldable = x(a).constant_foldable && x(b).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
