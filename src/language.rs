@@ -4,9 +4,9 @@ define_language! {
     pub enum TnsrLang {
         "input"  = Input([Id; 1]), // Input T name@T/F@dim1_dim2_...
         "ewadd"  = Ewadd([Id; 2]), // T x T --> T
-        "ewmul"  = Ewmul([Id; 2]), // T x T --> T
-        "smul"   = Smul([Id; 2]), // S x T --> T 
-        "matmul" = Matmul([Id; 2]), // T x T --> T
+        "Mul"  = Mul([Id; 2]), // T x T --> T
+        "smul"   = Smul([Id; 2]), // S x T --> T
+        "MatMul" = MatMul([Id; 2]), // T x T --> T
         "noop"   = Noop([Id;2]), // No-op used to combine multiple outputs
         Num(i32),
         Var(Symbol),
@@ -101,7 +101,7 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 }
             },
 
-            TnsrLang::Ewmul([a, b]) => {
+            TnsrLang::Mul([a, b]) => {
                 assert!(x(a).dtype == DataKind::Tnsr);
                 assert!(x(b).dtype == DataKind::Tnsr);
                 assert!(&x(a).dims == &x(b).dims);
@@ -126,7 +126,7 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 }
             },
 
-            TnsrLang::Matmul([a, b]) => {
+            TnsrLang::MatMul([a, b]) => {
                 assert!(x(a).dtype == DataKind::Tnsr);
                 assert!(x(b).dtype == DataKind::Tnsr);
                 assert_eq!(x(a).dims.len(), vec![0, 0].len());
@@ -174,24 +174,24 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
 pub fn rules<A: Analysis<TnsrLang>>() -> Vec<Rewrite<TnsrLang, A>> { vec![
     rewrite!("ewadd-associative"; "(ewadd ?x (ewadd ?y ?z))" => "(ewadd (ewadd ?x ?y) ?z)"),
     rewrite!("ewadd-commutative"; "(ewadd ?x ?y)" => "(ewadd ?y ?x)"),
-    rewrite!("ewmul-associative"; "(ewmul ?x (ewmul ?y ?z))" => "(ewmul (ewmul ?x ?y) ?z)"),
-    rewrite!("ewmul-commutative"; "(ewmul ?x ?y)" => "(ewmul ?y ?x)"),
-    rewrite!("distributivity-0"; "(ewmul (ewadd ?x ?y) ?z)" => "(ewadd (ewmul ?x ?z) (ewmul ?y ?z))"),
+    rewrite!("Mul-associative"; "(Mul ?x (Mul ?y ?z))" => "(Mul (Mul ?x ?y) ?z)"),
+    rewrite!("Mul-commutative"; "(Mul ?x ?y)" => "(Mul ?y ?x)"),
+    rewrite!("distributivity-0"; "(Mul (ewadd ?x ?y) ?z)" => "(ewadd (Mul ?x ?z) (Mul ?y ?z))"),
     rewrite!("smul-associative"; "(smul (smul ?x ?y) ?w)" => "(smul ?x  (smul ?y ?w))"),
     rewrite!("distributivity-1"; "(smul (ewadd ?x ?y) ?w)" => "(ewadd (smul ?x ?w)  (smul ?y ?w))"),
-    rewrite!("operator-commutativity-0"; "(smul (ewmul ?x ?y) ?w)" => "(ewmul ?x  (smul ?y ?w))"),
-    rewrite!("matmul-is-associative"; "(matmul ?x (matmul ?y ?z))" => "(matmul (matmul ?x ?y) ?z)"),
-    rewrite!("matmul-is-linear-0"; "(smul (matmul ?x ?y) ?w)" => "(matmul ?x  (smul ?y ?w))"),
-    rewrite!("matmul-is-linear-1"; "(matmul ?x (ewadd ?y ?z))" => "(ewadd (matmul ?x ?y) (matmul ?x ?z))"),
+    rewrite!("operator-commutativity-0"; "(smul (Mul ?x ?y) ?w)" => "(Mul ?x  (smul ?y ?w))"),
+    rewrite!("MatMul-is-associative"; "(MatMul ?x (MatMul ?y ?z))" => "(MatMul (MatMul ?x ?y) ?z)"),
+    rewrite!("MatMul-is-linear-0"; "(smul (MatMul ?x ?y) ?w)" => "(MatMul ?x  (smul ?y ?w))"),
+    rewrite!("MatMul-is-linear-1"; "(MatMul ?x (ewadd ?y ?z))" => "(ewadd (MatMul ?x ?y) (MatMul ?x ?z))"),
     rewrite!("-ewadd-associative"; "(ewadd (ewadd ?x ?y) ?z)" =>  "(ewadd ?x (ewadd ?y ?z))"),
-    rewrite!("-ewmul-associative"; "(ewmul (ewmul ?x ?y) ?z)" => "(ewmul ?x (ewmul ?y ?z))"),
-    rewrite!("-distributivity-0"; "(ewadd (ewmul ?x ?z) (ewmul ?y ?z))" => "(ewmul (ewadd ?x ?y) ?z)"),
+    rewrite!("-Mul-associative"; "(Mul (Mul ?x ?y) ?z)" => "(Mul ?x (Mul ?y ?z))"),
+    rewrite!("-distributivity-0"; "(ewadd (Mul ?x ?z) (Mul ?y ?z))" => "(Mul (ewadd ?x ?y) ?z)"),
     rewrite!("-smul-associative"; "(smul ?x  (smul ?y ?w))" => "(smul (smul ?x ?y) ?w)"),
     rewrite!("-distributivity-1"; "(ewadd (smul ?x ?w)  (smul ?y ?w))" => "(smul (ewadd ?x ?y) ?w)"),
-    rewrite!("-operator-commutativity-0"; "(ewmul ?x  (smul ?y ?w))" => "(smul (ewmul ?x ?y) ?w)"),
-    rewrite!("-matmul-is-associative"; "(matmul (matmul ?x ?y) ?z)" => "(matmul ?x (matmul ?y ?z))"),
-    rewrite!("-matmul-is-linear-0"; "(matmul ?x  (smul ?y ?w))" => "(smul (matmul ?x ?y) ?w)"),
-    rewrite!("-matmul-is-linear-1"; "(ewadd (matmul ?x ?y) (matmul ?x ?z))" => "(matmul ?x (ewadd ?y ?z))"),
+    rewrite!("-operator-commutativity-0"; "(Mul ?x  (smul ?y ?w))" => "(smul (Mul ?x ?y) ?w)"),
+    rewrite!("-MatMul-is-associative"; "(MatMul (MatMul ?x ?y) ?z)" => "(MatMul ?x (MatMul ?y ?z))"),
+    rewrite!("-MatMul-is-linear-0"; "(MatMul ?x  (smul ?y ?w))" => "(smul (MatMul ?x ?y) ?w)"),
+    rewrite!("-MatMul-is-linear-1"; "(ewadd (MatMul ?x ?y) (MatMul ?x ?z))" => "(MatMul ?x (ewadd ?y ?z))"),
 ]}
 
 pub struct TnsrCost<'a> {
@@ -230,7 +230,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             }
         }
 
-        TnsrLang::Ewmul([a, b]) => {
+        TnsrLang::Mul([a, b]) => {
             assert!(x(a).dtype == DataKind::Tnsr);
             assert!(x(b).dtype == DataKind::Tnsr);
             if x(a).constant_foldable && x(b).constant_foldable {
@@ -252,7 +252,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             }        
         }
 
-        TnsrLang::Matmul([a, b]) => {
+        TnsrLang::MatMul([a, b]) => {
             assert!(x(a).dtype == DataKind::Tnsr);
             assert!(x(b).dtype == DataKind::Tnsr);
             if x(a).constant_foldable && x(b).constant_foldable {
