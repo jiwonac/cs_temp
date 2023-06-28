@@ -36,7 +36,6 @@ fn main() {
             .help("Max number of nodes for egraph"),
     )
     .get_matches();
-
     optimize(matches);
 }
 
@@ -87,6 +86,9 @@ fn optimize(matches: clap::ArgMatches) {
     println!("  Best cost: {:?}", best_cost);
 
     println!("Extracted program:\n {}", best.pretty(40 as usize));
+
+    let folded_best: RecExpr<TnsrLang> = constant_fold(best);
+    println!("Constant folded program:\n {}", folded_best.pretty(40 as usize));
 }
 
 fn get_stats(egraph: &EGraph<TnsrLang, TnsrAnalysis>) -> (usize, usize, f32, usize, f32) {
@@ -106,4 +108,8 @@ fn get_stats(egraph: &EGraph<TnsrLang, TnsrAnalysis>) -> (usize, usize, f32, usi
         num_edges,
         num_programs,
     )
+}
+
+fn constant_fold(expr: RecExpr<TnsrLang>) -> RecExpr<TnsrLang> {
+    return expr;
 }
