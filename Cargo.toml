@@ -11,5 +11,5 @@ ndarray = "0.15"
 clap = "2.33"
 
 [[bin]]
-name = "cs_optimizer"
+name = "cso"
 path = "src/main.rs"
