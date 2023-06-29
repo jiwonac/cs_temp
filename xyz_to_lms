@@ -1,18 +1,18 @@
 (Add
   (Mul
-    (input 116_500_200@T@3_1)
+    (input 116_500_200@T@3)
     (Add
-      (Exp
+      (Pow
         (Relu
           (Add
             (Mul
               (MatMul
+                (input image@F@1000000_3)
                 (input yxy@T@3_3)
-                (input image@F@3_1)
               )
-              (input inverse_xyzn@T@3_1)
+              (input inverse_xyzn@T@3)
             )
-            (input inverse_delta_3@T@3_1)
+            (input inverse_delta_3@T@1)
           )
         )
         0.3333333
@@ -27,28 +27,28 @@
               Mul
               (
                 MatMul
+                (input image@F@1000000_3)
                 (input yxy@T@3_3)
-                (input image@F@3_1)
               )
-              (input inverse_xyzn@T@3_1)
+              (input inverse_xyzn@T@3)
             )
-            (input inverse_delta_3@T@3_1)
+            (input inverse_delta_3@T@1)
           )
         )
-        (input minus_4_29@T@3_1)
+        (input minus_4_29@T@3)
       )
     )
   )
   (
     Add
-    (input neg_16@T@3_1)
+    (input neg_16@T@3)
     (
       Mul
-      (input 0_1_1@T@3_1)
+      (input 0_1_1@T@3)
       (
         Add
         (
-          Exp
+          Pow
           (
             Relu
             (
@@ -57,12 +57,12 @@
                 Mul
                 (
                   MatMul
+                  (input image@F@1000000_3)
                   (input 0YZ@T@3_3)
-                  (input image@F@3_1)
                 )
-                (input inverse_1yz@T@3_1)
+                (input inverse_1yz@T@3)
               )
-              (input inverse_delta_3@T@3_1)
+              (input inverse_delta_3@T@1)
             )
           )
           0.3333333
@@ -77,15 +77,15 @@
                 Mul
                 (
                   MatMul
+                  (input image@F@1000000_3)
                   (input 0YZ@T@3_3)
-                  (input image@F@3_1)
                 )
-                (input inverse_1yz@T@3_1)
+                (input inverse_1yz@T@3)
               )
-              (input inverse_delta_3@T@3_1)
+              (input inverse_delta_3@T@1)
             )
           )
-          (input minus_4_29@T@3_1)
+          (input minus_4_29@T@3)
         )
       )
     )

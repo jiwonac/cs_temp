@@ -1,4 +1,5 @@
 use egg::*;
+use std::cmp::max;
 
 define_language! {
     pub enum TnsrLang {
@@ -9,9 +10,8 @@ define_language! {
         "MatMul" = MatMul([Id; 2]), // T x T --> T
         "noop"   = Noop([Id;2]), // No-op used to combine multiple outputs
         "Relu"   = Relu([Id;1]), // Relu activation T --> T
-        "Exp"    = Exp([Id; 2]), // Elementwise power T x S --> T
+        "Pow"    = Pow([Id; 2]), // Elementwise power T x S --> T
         "Transpose"  = Transpose([Id;1]), // T --> T
-        Num(i32),
         Var(Symbol),
     }
 }
@@ -94,12 +94,12 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
             TnsrLang::Add([a, b]) => {
                 assert!(x(a).dtype == DataKind::Tnsr);
                 assert!(x(b).dtype == DataKind::Tnsr);
-                assert!(&x(a).dims == &x(b).dims);
+                assert!(is_broadcastable(&x(a).dims, &x(b).dims));
                 let foldable = x(a).constant_foldable && x(b).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: x(a).dims.clone(),
+                    dims: broadcast_vectors(&x(a).dims, &x(b).dims),
                     constant_foldable: foldable,
                 }
             },
@@ -107,12 +107,12 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
             TnsrLang::Mul([a, b]) => {
                 assert!(x(a).dtype == DataKind::Tnsr);
                 assert!(x(b).dtype == DataKind::Tnsr);
-                assert!(&x(a).dims == &x(b).dims);
+                assert!(is_broadcastable(&x(a).dims, &x(b).dims));
                 let foldable = x(a).constant_foldable && x(b).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: x(a).dims.clone(),
+                    dims: broadcast_vectors(&x(a).dims, &x(b).dims),
                     constant_foldable: foldable,
                 }
             },
@@ -168,14 +168,15 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 }
             },
 
-            TnsrLang::Exp([t, s]) => {
-                assert!(x(t).dtype == DataKind::Tnsr);
-                assert!(x(s).dtype == DataKind::Scalar);
-                let foldable = x(t).constant_foldable && x(s).constant_foldable;
+            TnsrLang::Pow([a, b]) => {
+                assert!(x(a).dtype == DataKind::Tnsr);
+                assert!(x(b).dtype == DataKind::Tnsr || x(b).dtype == DataKind::Scalar);
+                assert!(is_broadcastable(&x(a).dims, &x(b).dims));
+                let foldable = x(a).constant_foldable && x(b).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: x(t).dims.clone(),
+                    dims: broadcast_vectors(&x(a).dims, &x(b).dims),
                     constant_foldable: foldable,
                 }
             },
@@ -186,16 +187,9 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: x(t).dims.clone(),
+                    dims: transpose_shape(&x(t).dims),
                     constant_foldable: foldable,
                 }
-            },
-
-            TnsrLang::Num(_n) => Self::Data {
-                dtype: DataKind::Scalar,
-                name: String::new(),
-                dims: vec![],
-                constant_foldable: true,
             },
 
             TnsrLang::Var(_s) => {
@@ -220,6 +214,59 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 }
             },
         }
+    }
+}
+
+fn transpose_shape(shape: &Vec<i32>) -> Vec<i32> {
+    let mut transpose_shape = shape.clone();
+    transpose_shape.reverse();
+    transpose_shape
+}
+
+fn is_broadcastable(foo: &Vec<i32>, bar: &Vec<i32>) -> bool {
+    if foo == bar {
+        return true
+    }
+    let (shorter, longer) = if foo.len() <= bar.len() {
+        (foo, bar)
+    } else {
+        (bar, foo)
+    };
+
+    let mut lengthened: Vec<i32> = shorter.clone();
+    lengthened.reverse();
+    lengthened.resize(longer.len(), 1);
+    lengthened.reverse();
+    
+    for i in 0..longer.len() {
+        if lengthened[i] != longer[i] && lengthened[i] != 1 && longer[i] != 1 {
+            return false
+        }
+    }
+    return true
+}
+
+fn broadcast_vectors(foo: &Vec<i32>, bar: &Vec<i32>) -> Vec<i32> {
+    if !is_broadcastable(foo, bar) {
+        return vec![];
+    } else {
+        let (shorter, longer) = if foo.len() <= bar.len() {
+            (foo, bar)
+        } else {
+            (bar, foo)
+        };
+
+        let mut lengthened: Vec<i32> = shorter.clone();
+        lengthened.reverse();
+        lengthened.resize(longer.len(), 1);
+        lengthened.reverse();
+
+        let mut result: Vec<i32> = vec![0; longer.len()];
+        for i in 0..longer.len() {
+            result[i] = max(lengthened[i], longer[i]);
+        }
+
+        return result
     }
 }
 
@@ -254,12 +301,10 @@ pub fn rules<A: Analysis<TnsrLang>>() -> Vec<Rewrite<TnsrLang, A>> { vec![
     rewrite!("transpose-commutativity-smul"; "(smul (Transpose ?x) ?w)" => "(Transpose (smul ?x ?w))"),
     rewrite!("-transpose-commutativity-smul"; "(Transpose (smul ?x ?w))" => "(smul (Transpose ?x) ?w)"),
     rewrite!("MatMul-transpose"; "(Transpose (MatMul ?x ?y))" => "(MatMul (Transpose ?y)  (Transpose ?x))"),
-    rewrite!("exp-Mul"; "(Exp (Mul ?x ?y) ?z)" => "(Mul (Exp ?x ?z) (Exp ?y ?z))"),
-    rewrite!("-exp-Mul"; "(Mul (Exp ?x ?z) (Exp ?y ?z))" => "(Exp (Mul ?x ?y) ?z)"),
-    rewrite!("exp-transpose"; "(Exp (Transpose ?x) ?y)" => "(Transpose (Exp ?x ?y))"),
-    rewrite!("-exp-transpose"; "(Transpose (Exp ?x ?y))" => "(Exp (Transpose ?x) ?y)"),
-    //rewrite!("pow-relu"; "(Exp (Relu ?x) ?y)" => "(Relu (Exp ?x ?y))"), // Requires pow be positive base
-    //rewrite!("-pow-relu"; "(Relu (Exp ?x ?y))" => "(Exp (Relu ?x) ?y)"), // Requires pow be positive base
+    rewrite!("Pow-Mul"; "(Pow (Mul ?x ?y) ?z)" => "(Mul (Pow ?x ?z) (Pow ?y ?z))"),
+    rewrite!("-Pow-Mul"; "(Mul (Pow ?x ?z) (Pow ?y ?z))" => "(Pow (Mul ?x ?y) ?z)"),
+    rewrite!("Pow-transpose"; "(Pow (Transpose ?x) ?y)" => "(Transpose (Pow ?x ?y))"),
+    rewrite!("-Pow-transpose"; "(Transpose (Pow ?x ?y))" => "(Pow (Transpose ?x) ?y)"),
 ]}
 
 pub struct TnsrCost<'a> {
@@ -286,14 +331,13 @@ impl LpCostFunction<TnsrLang, TnsrAnalysis> for TnsrCost<'_> {
 const COPY_COST: f64 = 0.1;
 const ADDITION_COST: f64 = 1.0;
 const MULTIPLY_COST: f64 = 6.0;
-const EXP_COST: f64 = 10.0;
+const POW_COST: f64 = 10.0;
 const RELU_COST: f64 = 1.0;
 
 fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f64 {
     let x = |i: &Id| &egraph[*i].data;
     match enode {
-        TnsrLang::Num(_)
-        | TnsrLang::Var(_)
+        TnsrLang::Var(_)
         | TnsrLang::Input(_)
         | TnsrLang::Noop(_) => 0.0,
 
@@ -360,14 +404,14 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f64
             }
         }
 
-        TnsrLang::Exp([t, s]) => {
+        TnsrLang::Pow([t, s]) => {
             assert!(x(t).dtype == DataKind::Tnsr);
             assert!(x(s).dtype == DataKind::Scalar);
             if x(t).constant_foldable && x(s).constant_foldable {
                 0.0
             } else {
                 let product: i32 = x(t).dims.iter().product::<i32>();
-                product as f64 * EXP_COST
+                product as f64 * POW_COST
             }
         }
     }
