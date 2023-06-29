@@ -1,0 +1,51 @@
+ (Add
+  (Mul
+    (input 0_1_1@T@3_1)
+    (Add
+      (input minus_4_29@T@3_1)
+      (Add
+        (Exp
+          (Relu
+            (Add
+              (input inverse_delta_3@T@3_1)
+              (Mul
+                (MatMul
+                  (input 0YZ@T@3_3)
+                  (input image@F@3_1))
+                (input inverse_1yz@T@3_1))))
+          0.3333333)
+        (Relu
+          (Mul
+            (MatMul
+              (input 0YZ@T@3_3)
+              (input image@F@3_1))
+            (Mul
+              (input inverse_delta_3@T@3_1)
+              (input inverse_1yz@T@3_1)))))))
+  (Add
+    (Mul
+      (input 116_500_200@T@3_1)
+      (Add
+        (Exp
+          (Relu
+            (Add
+              (Mul
+                (MatMul
+                  (input yxy@T@3_3)
+                  (input image@F@3_1))
+                (input inverse_xyzn@T@3_1))
+              (input inverse_delta_3@T@3_1)))
+          0.3333333)
+        (Relu
+          (Mul
+            (MatMul
+              (input yxy@T@3_3)
+              (input image@F@3_1))
+            (Mul
+              (input inverse_xyzn@T@3_1)
+              (input inverse_delta_3@T@3_1))))))
+    (Add
+      (Mul
+        (input 116_500_200@T@3_1)
+        (input minus_4_29@T@3_1))
+      (input neg_16@T@3_1))))

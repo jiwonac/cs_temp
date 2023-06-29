@@ -163,19 +163,19 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: vec![],
+                    dims: x(t).dims.clone(),
                     constant_foldable: foldable,
                 }
             },
 
             TnsrLang::Exp([t, s]) => {
                 assert!(x(t).dtype == DataKind::Tnsr);
-                assert!(x(s).dtype == DataKind::Tnsr);
+                assert!(x(s).dtype == DataKind::Scalar);
                 let foldable = x(t).constant_foldable && x(s).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: vec![],
+                    dims: x(t).dims.clone(),
                     constant_foldable: foldable,
                 }
             },
@@ -186,7 +186,7 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
-                    dims: vec![],
+                    dims: x(t).dims.clone(),
                     constant_foldable: foldable,
                 }
             },
@@ -198,11 +198,26 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 constant_foldable: true,
             },
 
-            TnsrLang::Var(_s) => Self::Data {
-                dtype: DataKind::Name,
-                name: _s.as_str().to_string(),
-                dims: vec![],
-                constant_foldable: true,
+            TnsrLang::Var(_s) => {
+                let num = _s.as_str().to_string().parse::<f64>();
+                match num {
+                    Ok(_) => {
+                        Self::Data {
+                            dtype: DataKind::Scalar,
+                            name: _s.as_str().to_string(),
+                            dims: vec![],
+                            constant_foldable: true,
+                        }
+                    }
+                    Err(_) => {
+                        Self::Data {
+                            dtype: DataKind::Name,
+                            name: _s.as_str().to_string(),
+                            dims: vec![],
+                            constant_foldable: true,
+                        }
+                    }
+                }
             },
         }
     }
@@ -229,20 +244,22 @@ pub fn rules<A: Analysis<TnsrLang>>() -> Vec<Rewrite<TnsrLang, A>> { vec![
     rewrite!("-MatMul-is-associative"; "(MatMul (MatMul ?x ?y) ?z)" => "(MatMul ?x (MatMul ?y ?z))"),
     rewrite!("-MatMul-is-linear-0"; "(MatMul ?x  (smul ?y ?w))" => "(smul (MatMul ?x ?y) ?w)"),
     rewrite!("-MatMul-is-linear-1"; "(Add (MatMul ?x ?y) (MatMul ?x ?z))" => "(MatMul ?x (Add ?y ?z))"),
-    rewrite!("relu-transpose"; "(relu (transpose ?x))" => "(transpose (relu ?x))"),
-    rewrite!("-relu-transpose"; "(transpose (relu ?x))" => "(relu (transpose ?x))"),
-    rewrite!("transpose-is-its-own-inverse"; "(transpose (transpose ?x))" => "?x"),
-    rewrite!("transpose-commutativity-ewadd"; "(transpose (Add ?x ?y))" => "(Add (transpose ?x)  (transpose ?y))"),
-    rewrite!("-transpose-commutativity-ewadd"; "(Add (transpose ?x)  (transpose ?y))" => "(transpose (Add ?x ?y))"),
-    rewrite!("transpose-commutativity-ewmul"; "(transpose (ewmul ?x ?y))" => "(ewmul (transpose ?x)  (transpose ?y))"),
-    rewrite!("transpose-commutativity-ewmul"; "(ewmul (transpose ?x)  (transpose ?y))" => "(transpose (ewmul ?x ?y))"),
-    rewrite!("transpose-commutativity-smul"; "(smul (transpose ?x) ?w)" => "(transpose (smul ?x ?w))"),
-    rewrite!("-transpose-commutativity-smul"; "(transpose (smul ?x ?w))" => "(smul (transpose ?x) ?w)"),
-    rewrite!("matmul-transpose"; "(transpose (matmul ?x ?y))" => "(matmul (transpose ?y)  (transpose ?x))"),
-    rewrite!("exp-ewmul"; "(Exp (Mul ?x ?y) ?z)" => "(Mul (Exp ?x ?z) (Exp ?y ?z))"),
-    rewrite!("-exp-ewmul"; "(Mul (Exp ?x ?z) (Exp ?y ?z))" => "(Exp (Mul ?x ?y) ?z)"),
+    rewrite!("relu-transpose"; "(Relu (Transpose ?x))" => "(Transpose (Relu ?x))"),
+    rewrite!("-relu-transpose"; "(Transpose (Relu ?x))" => "(Relu (Transpose ?x))"),
+    rewrite!("transpose-is-its-own-inverse"; "(Transpose (Transpose ?x))" => "?x"),
+    rewrite!("transpose-commutativity-ewadd"; "(Transpose (Add ?x ?y))" => "(Add (Transpose ?x)  (Transpose ?y))"),
+    rewrite!("-transpose-commutativity-ewadd"; "(Add (Transpose ?x)  (Transpose ?y))" => "(Transpose (Add ?x ?y))"),
+    rewrite!("transpose-commutativity-Mul"; "(Transpose (Mul ?x ?y))" => "(Mul (Transpose ?x)  (Transpose ?y))"),
+    rewrite!("-transpose-commutativity-Mul"; "(Mul (Transpose ?x)  (Transpose ?y))" => "(Transpose (Mul ?x ?y))"),
+    rewrite!("transpose-commutativity-smul"; "(smul (Transpose ?x) ?w)" => "(Transpose (smul ?x ?w))"),
+    rewrite!("-transpose-commutativity-smul"; "(Transpose (smul ?x ?w))" => "(smul (Transpose ?x) ?w)"),
+    rewrite!("MatMul-transpose"; "(Transpose (MatMul ?x ?y))" => "(MatMul (Transpose ?y)  (Transpose ?x))"),
+    rewrite!("exp-Mul"; "(Exp (Mul ?x ?y) ?z)" => "(Mul (Exp ?x ?z) (Exp ?y ?z))"),
+    rewrite!("-exp-Mul"; "(Mul (Exp ?x ?z) (Exp ?y ?z))" => "(Exp (Mul ?x ?y) ?z)"),
     rewrite!("exp-transpose"; "(Exp (Transpose ?x) ?y)" => "(Transpose (Exp ?x ?y))"),
     rewrite!("-exp-transpose"; "(Transpose (Exp ?x ?y))" => "(Exp (Transpose ?x) ?y)"),
+    //rewrite!("pow-relu"; "(Exp (Relu ?x) ?y)" => "(Relu (Exp ?x ?y))"), // Requires pow be positive base
+    //rewrite!("-pow-relu"; "(Relu (Exp ?x ?y))" => "(Exp (Relu ?x) ?y)"), // Requires pow be positive base
 ]}
 
 pub struct TnsrCost<'a> {
@@ -255,17 +272,24 @@ impl CostFunction<TnsrLang> for TnsrCost<'_> {
     /// trait for more information on interface.
     fn cost<C: FnMut(Id) -> Self::Cost>(&mut self, enode: &TnsrLang, mut costs: C) -> Self::Cost {
         let self_cost = get_op_cost(&*self.egraph, enode);
-        enode.fold(self_cost, |sum, id| sum + costs(id))
+        enode.fold(self_cost as f32, |sum, id| sum + costs(id))
     }
 }
 
-const COPY_COST: f32 = 0.1;
-const ADDITION_COST: f32 = 1.0;
-const MULTIPLY_COST: f32 = 6.0;
-const EXP_COST: f32 = 10.0;
-const RELU_COST: f32 = 1.0;
+impl LpCostFunction<TnsrLang, TnsrAnalysis> for TnsrCost<'_> {
+    fn node_cost(&mut self, _: &EGraph<TnsrLang, TnsrAnalysis>, _: Id, enode: &TnsrLang) -> f64 {
+        let self_cost = get_op_cost(&*self.egraph, enode);
+        self_cost
+    }
+}
 
-fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32 {
+const COPY_COST: f64 = 0.1;
+const ADDITION_COST: f64 = 1.0;
+const MULTIPLY_COST: f64 = 6.0;
+const EXP_COST: f64 = 10.0;
+const RELU_COST: f64 = 1.0;
+
+fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f64 {
     let x = |i: &Id| &egraph[*i].data;
     match enode {
         TnsrLang::Num(_)
@@ -280,7 +304,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(a).dims.iter().product::<i32>();
-                product as f32 * ADDITION_COST
+                product as f64 * ADDITION_COST
             }
         }
 
@@ -291,7 +315,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(a).dims.iter().product::<i32>();
-                product as f32 * MULTIPLY_COST
+                product as f64 * MULTIPLY_COST
             }
         }
 
@@ -302,7 +326,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(t).dims.iter().product::<i32>();
-                product as f32 * MULTIPLY_COST
+                product as f64 * MULTIPLY_COST
             }        
         }
 
@@ -312,7 +336,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             if x(a).constant_foldable && x(b).constant_foldable {
                 0.0
             } else {
-                (x(a).dims[0] * x(a).dims[1] * x(b).dims[1]) as f32 * MULTIPLY_COST
+                (x(a).dims[0] * x(a).dims[1] * x(b).dims[1]) as f64 * MULTIPLY_COST
             }
         }
 
@@ -322,7 +346,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(t).dims.iter().product::<i32>();
-                product as f32 * COPY_COST
+                product as f64 * COPY_COST
             }
         }
 
@@ -332,7 +356,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(t).dims.iter().product::<i32>();
-                product as f32 * RELU_COST
+                product as f64 * RELU_COST
             }
         }
 
@@ -343,7 +367,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
                 0.0
             } else {
                 let product: i32 = x(t).dims.iter().product::<i32>();
-                product as f32 * EXP_COST
+                product as f64 * EXP_COST
             }
         }
     }

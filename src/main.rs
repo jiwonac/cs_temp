@@ -18,7 +18,7 @@ fn main() {
         Arg::with_name("n_iter")
             .long("n_iter")
             .takes_value(true)
-            .default_value("3")
+            .default_value("100")
             .help("Max number of iterations for egg to run"),
     )
     .arg(
@@ -48,6 +48,15 @@ fn optimize(matches: clap::ArgMatches) {
     let n_iter = matches.value_of("n_iter").unwrap().parse::<usize>().unwrap();
     let n_sec = Duration::new(matches.value_of("n_sec").unwrap().parse::<u64>().unwrap(), 0);
     let n_nodes = matches.value_of("n_nodes").unwrap().parse::<usize>().unwrap();
+
+    let initial_expr: RecExpr<TnsrLang> = program.parse().unwrap();
+    let initial_runner = MyRunner::new(Default::default()).with_expr(&initial_expr);
+    let initial_tnsr_cost = TnsrCost {
+        egraph: &initial_runner.egraph,
+    };
+    let initial_extractor = Extractor::new(&initial_runner.egraph, initial_tnsr_cost);
+    let (initial_cost, _) = initial_extractor.find_best(initial_runner.roots[0]);
+    println!("Initial cost: {}", initial_cost);
 
     let runner = MyRunner::new(Default::default())
                     .with_node_limit(n_nodes)
@@ -87,6 +96,19 @@ fn optimize(matches: clap::ArgMatches) {
     println!("  Best cost: {:?}", best_cost);
 
     println!("Extracted program:\n {}", best.pretty(40 as usize));
+
+    let lp_tnsr_cost = TnsrCost {
+        egraph: &egraph,
+    };
+    let mut lp_extractor = LpExtractor::new(&egraph, lp_tnsr_cost);
+    let lp_start_time = Instant::now();
+    let lp_best = lp_extractor.solve(root);
+    let lp_duration = lp_start_time.elapsed();
+
+    println!("ILP extraction complete!");
+    println!("   Time taken: {:?}", lp_duration);
+    //println!("   Best cost: {:?}", lp_best_cost);
+    println!("Extracted program:\n {}", lp_best.pretty(40 as usize));
 }
 
 fn get_stats(egraph: &EGraph<TnsrLang, TnsrAnalysis>) -> (usize, usize, f32, usize, f32) {
