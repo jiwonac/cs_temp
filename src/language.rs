@@ -1,9 +1,8 @@
 use egg::*;
-use ndarray::{Array, ArrayD, IxDyn};
 
 define_language! {
     pub enum TnsrLang {
-        "input"  = Input([Id; 1]), // Input T name@T/F@dim1_dim2_...@[[1,1,1],[2,2,2],[3,3,3]]
+        "input"  = Input([Id; 1]), // Input T name@T/F@dim1_dim2_...
         "ewadd"  = Ewadd([Id; 2]), // T x T --> T
         "Mul"  = Mul([Id; 2]), // T x T --> T
         "smul"   = Smul([Id; 2]), // S x T --> T
@@ -33,10 +32,8 @@ impl Default for DataKind {
 pub struct Metadata {
     pub dtype: DataKind, // The type of the e-class
     pub name: String, // Name of input if it is an input type
-    pub dims: Vec<usize>,
+    pub dims: Vec<i32>,
     pub constant_foldable: bool,
-    pub input: ArrayD<f64>, // Input matrix ndarray if it is an input type
-    pub num: f64,
 }
 
 pub struct TnsrAnalysis {
@@ -69,22 +66,14 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
         // (String, bool, Vec<i32>)
         let parse_input = |name: &Id| {
             let name_vec: Vec<&str> = x(name).name.split("@").collect();
-            assert!(name_vec.len() == 4);
+            assert!(name_vec.len() == 3);
             let name: String = String::from(name_vec[0]);
             let is_constant: bool = name_vec[1] == "T";
-            let dims: Vec<usize> = name_vec[2]
+            let dims: Vec<i32> = name_vec[2]
                 .split("_")
-                .map(|x| x.parse::<usize>().unwrap())
+                .map(|x| x.parse::<i32>().unwrap())
                 .collect();
-            let mut input: ArrayD<f64> = ArrayD::default(IxDyn(&vec![0,0][..]));
-            if is_constant {
-                let elems: Vec<f64> = name_vec[3]
-                .split("_")
-                .map(|x| x.parse::<f64>().unwrap())
-                .collect();
-                input = Array::from_shape_vec(IxDyn(&dims), elems).unwrap();
-            }
-            (name, is_constant, dims, input)
+            (name, is_constant, dims)
         };
 
         match enode {
@@ -93,11 +82,9 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 let parsed_input = parse_input(name);
                 Self::Data {
                     dtype: DataKind::Tnsr,
-                    name: parsed_input.0,
+                    name: String::new(),
                     dims: parsed_input.2,
                     constant_foldable: parsed_input.1,
-                    input: parsed_input.3,
-                    num: 0.0,
                 }
             },
 
@@ -111,8 +98,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                     name: String::new(),
                     dims: x(a).dims.clone(),
                     constant_foldable: foldable,
-                    input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                    num: 0.0,
                 }
             },
 
@@ -126,8 +111,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                     name: String::new(),
                     dims: x(a).dims.clone(),
                     constant_foldable: foldable,
-                    input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                    num: 0.0,
                 }
             },
 
@@ -140,8 +123,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                     name: String::new(),
                     dims: x(t).dims.clone(),
                     constant_foldable: foldable,
-                    input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                    num: 0.0,
                 }
             },
 
@@ -151,14 +132,13 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 assert_eq!(x(a).dims.len(), vec![0, 0].len());
                 assert_eq!(x(b).dims.len(), vec![0, 0].len());
                 assert_eq!(x(a).dims[1], x(b).dims[0]);
+                //println!("{} {} {} {}", x(a).dims[0], x(a).dims[1], x(b).dims[0], x(b).dims[1]);
                 let foldable = x(a).constant_foldable && x(b).constant_foldable;
                 Self::Data {
                     dtype: DataKind::Tnsr,
                     name: String::new(),
                     dims: vec![x(a).dims[0], x(b).dims[1]],
                     constant_foldable: foldable,
-                    input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                    num: 0.0,
                 }
             },
 
@@ -171,8 +151,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                     name: String::new(),
                     dims: vec![],
                     constant_foldable: foldable,
-                    input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                    num: 0.0,
                 }
             },
 
@@ -181,8 +159,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 name: String::new(),
                 dims: vec![],
                 constant_foldable: true,
-                input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                num: 0.0,
             },
 
             TnsrLang::Var(_s) => Self::Data {
@@ -190,8 +166,6 @@ impl Analysis<TnsrLang> for TnsrAnalysis {
                 name: _s.as_str().to_string(),
                 dims: vec![],
                 constant_foldable: true,
-                input: ArrayD::default(IxDyn(&vec![0,0][..])),
-                num: 0.0,
             },
         }
     }
@@ -251,7 +225,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             if x(a).constant_foldable && x(b).constant_foldable {
                 0.0
             } else {
-                let product: usize = x(a).dims.iter().product::<usize>();
+                let product: i32 = x(a).dims.iter().product::<i32>();
                 product as f32 * ADDITION_COST
             }
         }
@@ -262,7 +236,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             if x(a).constant_foldable && x(b).constant_foldable {
                 0.0
             } else {
-                let product: usize = x(a).dims.iter().product::<usize>();
+                let product: i32 = x(a).dims.iter().product::<i32>();
                 product as f32 * MULTIPLY_COST
             }
         }
@@ -273,7 +247,7 @@ fn get_op_cost(egraph: &EGraph<TnsrLang, TnsrAnalysis>, enode: &TnsrLang) -> f32
             if x(s).constant_foldable && x(t).constant_foldable {
                 0.0
             } else {
-                let product: usize = x(t).dims.iter().product::<usize>();
+                let product: i32 = x(t).dims.iter().product::<i32>();
                 product as f32 * MULTIPLY_COST
             }        
         }
