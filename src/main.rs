@@ -25,7 +25,7 @@ fn main() {
         Arg::with_name("n_sec")
             .long("n_sec")
             .takes_value(true)
-            .default_value("10")
+            .default_value("60")
             .help("Max number of seconds for egg to run"),
     )
     .arg(
@@ -96,6 +96,7 @@ fn optimize(matches: clap::ArgMatches) {
     println!("  Best cost: {:?}", best_cost);
 
     println!("Extracted program:\n {}", best.pretty(40 as usize));
+    println!("{:?}", best);
 
     let lp_tnsr_cost = TnsrCost {
         egraph: &egraph,
